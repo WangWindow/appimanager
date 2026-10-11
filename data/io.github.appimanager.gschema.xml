@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="io.github.appimanager.AppImageManager" path="/io/github/appimanager/">
+    <key name="appimages-default-folder" type="s">
+      <default>"~/AppImages"</default>
+    </key>
+    <key name="move-appimage-on-integration" type="b"><default>true</default></key>
+    <key name="exec-as-name-for-terminal-apps" type="b"><default>false</default></key>
+    <key name="debug-logs" type="b"><default>false</default></key>
+    <key name="manage-files-outside-default-folder" type="b"><default>true</default></key>
+    <key name="is-maximized" type="b"><default>false</default></key>
+    <key name="preview-minimal-ui" type="b"><default>true</default></key>
+    <key name="block-unsafe-extractor" type="b"><default>true</default></key>
+    <key name="legacy-config-migrated" type="b"><default>false</default></key>
+  </schema>
+</schemalist>

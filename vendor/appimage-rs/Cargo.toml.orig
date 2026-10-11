@@ -1,0 +1,43 @@
+[package]
+name = "appimage-rs"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Minimal pure-Rust reader, extractor, and FUSE mounter for type-2 AppImages"
+license = "MIT"
+readme = "README.md"
+homepage = "https://tangled.org/philocalyst.bsky.social/Appstream-rs/"
+repository = "https://tangled.org/philocalyst.bsky.social/Appstream-rs/"
+
+[lib]
+name = "appimage"
+
+[package.metadata.docs.rs]
+rustdoc-args = ["--cfg", "docsrs"]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[features]
+default = []
+# Opt-in SquashFS compressions.
+xz = ["dep:lzma-rs"]
+zstd = ["dep:ruzstd"]
+
+[dependencies]
+backhand = { version = "0.25", default-features = false, features = ["gzip", "lzo", "lz4"] }
+lzma-rs = { version = "0.3", optional = true }
+ruzstd = { version = "0.9", optional = true }
+object = { version = "0.40", default-features = false, features = ["read_core", "elf", "std"] }
+memmap2 = "0.9"
+tempfile = "3"
+thiserror = "2"
+glob = "0.3"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# `polyfuse` talks directly to the Linux FUSE device through `fusermount`;
+# unlike libfuse bindings, it has no native library or header dependency.
+libc = "0.2"
+polyfuse = "0.5.1"
+
+[dev-dependencies]
+backhand = { version = "0.25", default-features = false, features = ["gzip"] }
+tempfile = "3"

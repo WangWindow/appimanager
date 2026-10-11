@@ -1,0 +1,26 @@
+# Third-party notices
+
+This crate is pure Rust. The **default build links no native/C libraries** — it
+does not vendor the AppImage runtime, libfuse, or squashfuse. It depends only on
+permissively licensed Rust crates (MIT / Apache-2.0 / BSD / zlib), notably:
+
+- [`backhand`](https://crates.io/crates/backhand) — SquashFS reader/writer (MIT OR Apache-2.0)
+- [`object`](https://crates.io/crates/object) — ELF parsing (MIT OR Apache-2.0)
+- [`memmap2`](https://crates.io/crates/memmap2) — memory mapping (MIT OR Apache-2.0)
+- [`polyfuse`](https://crates.io/crates/polyfuse), Linux only — FUSE protocol in pure Rust (MIT OR Apache-2.0)
+- [`flate2`](https://crates.io/crates/flate2) + [`zlib-rs`](https://crates.io/crates/zlib-rs) — gzip, pure Rust (MIT OR Apache-2.0)
+- [`lz4_flex`](https://crates.io/crates/lz4_flex), [`rust-lzo`](https://crates.io/crates/rust-lzo) — lz4 / lzo, pure Rust
+
+`polyfuse` mounts through the system `fusermount` helper at runtime; it is not
+linked or redistributed by this crate.
+
+## Optional C backends
+
+The non-default `xz` and `zstd` cargo features add SquashFS decompression for
+those algorithms by pulling small C `-sys` crates:
+
+- `xz` → [`liblzma`](https://crates.io/crates/liblzma) (bundles xz-utils, 0BSD / public-domain)
+- `zstd` → [`zstd`](https://crates.io/crates/zstd) (bundles zstd, BSD-3-Clause / GPL-2.0)
+
+Enable them only if you need those formats; consumers that redistribute a binary
+built with these features must satisfy the corresponding upstream licenses.

@@ -1,0 +1,29 @@
+name: Linux static bindings
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the pinned native dependencies
+        run: docker build --file tools/Dockerfile --tag appimage-runtime-ci .
+      - name: Run tests
+        run: >
+          docker run --rm
+          appimage-runtime-ci
+          sh -c './tools/create-test-appimage.sh /tmp/test.AppImage &&
+          APPIMAGE_TEST_IMAGE=/tmp/test.AppImage
+          cargo test --target x86_64-unknown-linux-musl'
+      - name: Build and verify release artifact
+        run: >
+          docker run --rm
+          appimage-runtime-ci
+          sh -c 'cargo build --release --example static_consumer
+          --target x86_64-unknown-linux-musl &&
+          file target/x86_64-unknown-linux-musl/release/examples/static_consumer |
+          tee /tmp/file-output &&
+          ! awk "/dynamically linked/ { found=1 } END { exit found }" /tmp/file-output'

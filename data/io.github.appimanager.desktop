@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AppImage Manager
+Comment=Manage local AppImages
+Exec=appimanager %U
+Icon=application-x-executable
+Terminal=false
+Categories=Utility;
+MimeType=application/vnd.appimage;application/x-iso9660-appimage;application/x-appimage;application/vnd.efi.iso;

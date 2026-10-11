@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      # fuse3 lets the mount test actually mount; it tolerates FUSE being
+      # unavailable, so this is best-effort.
+      - name: Install FUSE
+        run: sudo apt-get update && sudo apt-get install -y fuse3
+      - run: cargo clippy --all-targets --features xz,zstd -- -D warnings
+      - run: cargo test
+      - name: Test the pure-Rust xz/zstd decoders
+        run: cargo test --features xz,zstd
+
+  static-musl:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - name: Build the example as a static musl binary
+        run: cargo build --release --example static_consumer --target x86_64-unknown-linux-musl
+      - name: Assert the binary is fully static (pure Rust, no C to link)
+        run: |
+          file target/x86_64-unknown-linux-musl/release/examples/static_consumer | tee /tmp/f
+          ! grep -q "dynamically linked" /tmp/f

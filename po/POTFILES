@@ -1,0 +1,10 @@
+src/ui/mod.rs
+src/ui/actions.rs
+src/ui/app.rs
+src/ui/details_controller.rs
+src/ui/dialogs.rs
+src/ui/list.rs
+src/ui/details.rs
+src/ui/imports.rs
+src/ui/preferences.rs
+src/ui/environment.rs
