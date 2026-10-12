@@ -116,6 +116,10 @@ msgstr "打开 URL"
 msgid "Save"
 msgstr "保存"
 
+#: src/ui/details.rs
+msgid "Edit"
+msgstr "编辑"
+
 #: src/AppDetails.py:834
 msgid "How it works"
 msgstr "这是怎么工作的"

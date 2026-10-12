@@ -271,11 +271,17 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
         detail_banner: detail_page.banner.clone(),
         detail_pills: detail_page.pills.clone(),
         detail_arguments: detail_page.arguments.clone(),
+        detail_arguments_display: detail_page.arguments_display.clone(),
+        edit_arguments_button: detail_page.edit_arguments.clone(),
         detail_environment: detail_page.environment.clone(),
+        detail_save_button: detail_page.save_environment.clone(),
         detail_launch: detail_page.launch.clone(),
         detail_primary: detail_page.remove.clone(),
         detail_is_candidate,
         detail_website: detail_page.website.clone(),
+        detail_website_display: detail_page.website_display.clone(),
+        edit_website_button: detail_page.edit_website.clone(),
+        detail_open_website: detail_page.open_website.clone(),
         detail_website_row: detail_page.website_row.clone(),
         detail_reload: detail_page.reload_metadata.clone(),
         detail_advanced: detail_page.advanced.clone(),
@@ -383,21 +389,35 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
         }
     });
     let state_clone = state.clone();
+    detail_page.save_environment.connect_clicked(move |_| {
+        save_current_details(&state_clone);
+    });
+    let state_clone = state.clone();
     detail_page
-        .save_environment
-        .connect_clicked(move |_| save_current_details(&state_clone));
+        .edit_arguments
+        .connect_clicked(move |_| toggle_arguments_edit(&state_clone));
+    let save_weak = detail_page.save_environment.downgrade();
+    detail_page.arguments.connect_changed(move |_| {
+        if let Some(save) = save_weak.upgrade() {
+            save.set_sensitive(true);
+        }
+    });
+    let state_clone = state.clone();
+    detail_page.arguments.connect_activate(move |_| {
+        save_current_details(&state_clone);
+    });
     let state_clone = state.clone();
     detail_page
         .open_website
         .connect_clicked(move |_| open_current_website(&state_clone));
     let state_clone = state.clone();
     detail_page
-        .website
-        .connect_activate(move |_| save_website(&state_clone));
+        .edit_website
+        .connect_clicked(move |_| toggle_website_edit(&state_clone));
     let state_clone = state.clone();
-    let website_focus = gtk::EventControllerFocus::new();
-    website_focus.connect_leave(move |_| save_website_if_valid(&state_clone));
-    detail_page.website.add_controller(website_focus);
+    detail_page.website.connect_activate(move |_| {
+        save_website(&state_clone);
+    });
     let state_clone = state.clone();
     detail_page
         .reload_metadata

@@ -182,15 +182,15 @@ fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>, opened_from_f
 }
 
 pub(super) fn prepare_minimal_preview(state: &UiState) {
-    state.detail_content.set_spacing(6);
-    state.detail_content.set_margin_top(0);
+    state.detail_content.set_spacing(8);
+    state.detail_content.set_margin_top(12);
     state.detail_content.set_margin_bottom(0);
     state.detail_clamp.set_margin_top(0);
     state.detail_clamp.set_margin_bottom(0);
     state.detail_content.set_margin_start(12);
     state.detail_content.set_margin_end(12);
-    state.detail_actions.set_spacing(6);
-    state.detail_actions.set_margin_top(0);
+    state.detail_actions.set_spacing(8);
+    state.detail_actions.set_margin_top(12);
     state.detail_launch.remove_css_class("big-btn");
     state.detail_primary.remove_css_class("big-btn");
     state.subtitle.set_lines(1);
@@ -204,10 +204,10 @@ pub(super) fn prepare_minimal_preview(state: &UiState) {
             &state.detail_icon,
             app.icon_path.as_ref(),
             app.icon_name.as_deref(),
-            56,
+            96,
         );
     } else {
-        state.detail_icon.set_pixel_size(56);
+        state.detail_icon.set_pixel_size(96);
     }
     state.detail_info.set_visible(false);
     state.detail_pills.set_visible(false);
@@ -221,7 +221,7 @@ pub(super) fn prepare_minimal_preview(state: &UiState) {
     state.preferences_button.set_visible(false);
     state.search_button.set_visible(false);
     state.window.unmaximize();
-    state.window.set_default_size(420, -1);
+    state.window.set_default_size(420, 330);
     state.window.set_resizable(false);
 }
 
@@ -258,21 +258,25 @@ pub fn show_candidate(state: &UiState, candidate: &ImportCandidate) {
     state.detail_advanced.set_visible(false);
     state.detail_reload_row.set_visible(false);
     state.detail_website_row.set_visible(false);
-    let hash_row = adw::ActionRow::builder()
-        .title(i18n::tr("Hash"))
-        .subtitle(format!(
+    let (hash_card, hash_row) = presentation::boxed_icon_row("hash");
+    let hash_info = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    hash_info.set_hexpand(true);
+    let hash_title = gtk::Label::builder()
+        .label(i18n::tr("Hash"))
+        .xalign(0.0)
+        .build();
+    let hash_value = gtk::Label::builder()
+        .label(format!(
             "md5: {}\nsha1: {}\nsha256: {}",
             candidate.hashes.md5, candidate.hashes.sha1, candidate.hashes.sha256
         ))
-        .subtitle_lines(0)
-        .subtitle_selectable(true)
+        .xalign(0.0)
         .selectable(true)
+        .wrap(true)
         .build();
-    hash_row.add_prefix(&presentation::icon("hash", 34));
-    let hash_card = gtk::ListBox::new();
-    hash_card.add_css_class("boxed-list");
-    hash_card.set_selection_mode(gtk::SelectionMode::None);
-    hash_card.append(&hash_row);
+    hash_info.append(&hash_title);
+    hash_info.append(&hash_value);
+    hash_row.append(&hash_info);
     state.detail_info.append(&hash_card);
     state
         .detail_primary

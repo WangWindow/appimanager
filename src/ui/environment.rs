@@ -36,6 +36,8 @@ impl EnvironmentEditor {
         let row = gtk::Box::new(gtk::Orientation::Horizontal, 10);
         row.set_margin_top(10);
         row.set_margin_bottom(10);
+        row.set_margin_start(10);
+        row.set_margin_end(10);
         let key_entry = gtk::Entry::builder()
             .placeholder_text(i18n::tr("Key"))
             .text(key)
@@ -48,7 +50,8 @@ impl EnvironmentEditor {
             .sensitive(!key.is_empty())
             .build();
         let delete = presentation::icon_button("trash", "Remove environment variable");
-        delete.add_css_class("destructive-action");
+        delete.add_css_class("flat");
+        delete.set_valign(gtk::Align::Center);
         row.append(&key_entry);
         row.append(&gtk::Label::new(Some("=")));
         row.append(&value_entry);

@@ -10,6 +10,7 @@ pub fn icon(name: &str, pixel_size: i32) -> gtk::Image {
         "arrow-right" => "go-next-symbolic",
         "check" => "emblem-ok-symbolic",
         "circle-alert" => "dialog-warning-symbolic",
+        "edit" => "document-edit-symbolic",
         "external-link" => "external-link-symbolic",
         "file-plus" => "document-new-symbolic",
         "folder" => "folder-symbolic",
@@ -36,6 +37,43 @@ pub fn icon_button(name: &str, tooltip: &str) -> gtk::Button {
         button.set_tooltip_text(Some(&i18n::tr(tooltip)));
     }
     button
+}
+
+pub fn boxed_icon_row(name: &str) -> (gtk::ListBox, gtk::Box) {
+    let list = gtk::ListBox::new();
+    list.add_css_class("boxed-list");
+    list.set_selection_mode(gtk::SelectionMode::None);
+
+    let row = gtk::ListBoxRow::new();
+    row.set_activatable(false);
+    row.set_selectable(false);
+    let content = gtk::Box::new(gtk::Orientation::Horizontal, 12);
+    content.set_margin_top(8);
+    content.set_margin_bottom(8);
+    content.set_margin_start(12);
+    content.set_margin_end(12);
+
+    let icon_slot = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    icon_slot.set_size_request(24, 24);
+    icon_slot.set_halign(gtk::Align::Center);
+    icon_slot.set_valign(gtk::Align::Center);
+    icon_slot.append(&icon(name, 18));
+    content.append(&icon_slot);
+    row.set_child(Some(&content));
+    list.append(&row);
+
+    (list, content)
+}
+
+pub fn widget_slot(child: Option<gtk::Widget>, width: i32) -> gtk::Box {
+    let slot = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    slot.set_size_request(width, 24);
+    slot.set_halign(gtk::Align::Center);
+    slot.set_valign(gtk::Align::Center);
+    if let Some(child) = child {
+        slot.append(&child);
+    }
+    slot
 }
 
 pub fn app_image(path: Option<&PathBuf>, icon_name: Option<&str>, pixel_size: i32) -> gtk::Image {

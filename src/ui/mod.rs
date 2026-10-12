@@ -22,7 +22,7 @@ pub use app::{add_stack_page, run};
 pub use details::{DetailPage, build_details_page};
 pub use details_controller::{
     filter_rows, open_current_website, reload_current_metadata, save_current_details, save_website,
-    save_website_if_valid, show_details,
+    show_details, toggle_arguments_edit, toggle_website_edit,
 };
 pub use dialogs::{install_drop_target, show_message, toast};
 pub use environment::EnvironmentEditor;

@@ -55,9 +55,9 @@ pub fn show_details(state: &UiState, app: InstalledApp) {
         .set_tooltip_text(Some(app.appimage_type.label()));
     *state.current_detail.borrow_mut() = Some(app.clone());
     state.title.set_text(&app.name);
-    state
-        .subtitle
-        .set_text(app.description.as_deref().unwrap_or(""));
+    let description = app.description.as_deref().unwrap_or("").trim();
+    state.subtitle.set_text(description);
+    state.subtitle.set_visible(!description.is_empty());
     presentation::set_app_image(
         &state.detail_icon,
         app.icon_path.as_ref(),
@@ -103,13 +103,24 @@ pub fn show_details(state: &UiState, app: InstalledApp) {
     while let Some(child) = state.detail_info.first_child() {
         state.detail_info.remove(&child);
     }
-    let path_row = adw::ActionRow::builder()
-        .title(i18n::tr("Path"))
-        .subtitle(app.appimage_path.to_string_lossy())
-        .subtitle_selectable(true)
-        .selectable(false)
+    let (path_card, path_row) = presentation::boxed_icon_row("folder");
+    let path_info = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    path_info.set_hexpand(true);
+    let path_title = gtk::Label::builder()
+        .label(i18n::tr("Path"))
+        .xalign(0.0)
         .build();
-    path_row.add_prefix(&presentation::icon("folder", 34));
+    let appimage_path = app.appimage_path.to_string_lossy().to_string();
+    let path_value = gtk::Label::builder()
+        .label(&appimage_path)
+        .xalign(0.0)
+        .selectable(true)
+        .ellipsize(gtk::pango::EllipsizeMode::End)
+        .build();
+    path_value.set_tooltip_text(Some(&appimage_path));
+    path_info.append(&path_title);
+    path_info.append(&path_value);
+    path_row.append(&path_info);
     let open_folder = presentation::icon_button("external-link", "Open Folder");
     open_folder.set_valign(gtk::Align::Center);
     let folder = app.appimage_path.parent().map(PathBuf::from);
@@ -119,27 +130,32 @@ pub fn show_details(state: &UiState, app: InstalledApp) {
             launcher.launch(None::<&gtk::Window>, None::<&gio::Cancellable>, |_| {});
         }
     });
-    path_row.add_suffix(&open_folder);
-    let path_card = gtk::ListBox::new();
-    path_card.add_css_class("boxed-list");
-    path_card.set_selection_mode(gtk::SelectionMode::None);
-    path_card.append(&path_row);
+    path_row.append(&presentation::widget_slot(None, 24));
+    path_row.append(&presentation::widget_slot(
+        Some(open_folder.clone().upcast()),
+        44,
+    ));
     state.detail_info.append(&path_card);
     state.detail_website_row.set_visible(true);
     if let Ok(app_config) = config::load_app_config(&app.appimage_path) {
-        state.detail_website.set_title(&i18n::tr(
-            if app_config.website.as_deref().unwrap_or_default().is_empty() {
-                "Add a website"
-            } else {
-                "Website"
-            },
-        ));
+        let website = app_config.website.unwrap_or_default();
+        let placeholder = if website.is_empty() {
+            "Add a website"
+        } else {
+            "Website"
+        };
         state
             .detail_website
-            .set_text(app_config.website.as_deref().unwrap_or(""));
+            .set_placeholder_text(Some(&i18n::tr(placeholder)));
+        state.detail_website.set_text(&website);
     } else {
+        state
+            .detail_website
+            .set_placeholder_text(Some(&i18n::tr("Add a website")));
         state.detail_website.set_text("");
     }
+    update_website_display(state);
+    set_website_editing(state, false);
     let arguments = app
         .exec_arguments
         .iter()
@@ -147,7 +163,10 @@ pub fn show_details(state: &UiState, app: InstalledApp) {
         .collect::<Vec<_>>()
         .join(" ");
     state.detail_arguments.set_text(&arguments);
+    update_arguments_display(state);
+    set_arguments_editing(state, false);
     state.detail_environment.set_values(&app.environment);
+    state.detail_save_button.set_sensitive(false);
     state.detail_launch.set_label(&i18n::tr(if app.terminal {
         "This app runs in the terminal"
     } else {
@@ -163,9 +182,9 @@ fn append_pill(container: &adw::ToggleGroup, label: &str) {
     container.add(pill);
 }
 
-pub fn save_current_details(state: &UiState) {
+pub fn save_current_details(state: &UiState) -> bool {
     let Some(mut app) = state.current_detail.borrow().clone() else {
-        return;
+        return false;
     };
     let argument_text = state.detail_arguments.text();
     let arguments = if argument_text.trim().is_empty() {
@@ -181,7 +200,7 @@ pub fn save_current_details(state: &UiState) {
         Ok(values) => values,
         Err(error) => {
             show_message(state, &i18n::tr("Invalid data"), &error.to_string());
-            return;
+            return false;
         }
     };
 
@@ -199,7 +218,7 @@ pub fn save_current_details(state: &UiState) {
     });
     if let Err(error) = result {
         show_message(state, &i18n::tr("Unknown Error"), &error.to_string());
-        return;
+        return false;
     }
 
     app.exec_arguments = arguments;
@@ -212,6 +231,59 @@ pub fn save_current_details(state: &UiState) {
         .find(|stored| stored.desktop_file_path == app.desktop_file_path)
     {
         *stored = app;
+    }
+    update_arguments_display(state);
+    set_arguments_editing(state, false);
+    state.detail_save_button.set_sensitive(false);
+    true
+}
+
+pub fn toggle_website_edit(state: &UiState) {
+    if gtk::prelude::WidgetExt::is_visible(&state.detail_website) {
+        save_website(state);
+        return;
+    }
+
+    set_website_editing(state, true);
+    state.detail_website.grab_focus();
+}
+
+pub fn toggle_arguments_edit(state: &UiState) {
+    if gtk::prelude::WidgetExt::is_visible(&state.detail_arguments) {
+        save_current_details(state);
+        return;
+    }
+
+    set_arguments_editing(state, true);
+    state.detail_arguments.grab_focus();
+}
+
+fn set_arguments_editing(state: &UiState, editing: bool) {
+    state.detail_arguments.set_visible(editing);
+    state.detail_arguments_display.set_visible(!editing);
+    let icon_name = if editing { "check" } else { "edit" };
+    let tooltip = if editing { "Save" } else { "Edit" };
+    state
+        .edit_arguments_button
+        .set_child(Some(&presentation::icon(icon_name, 18)));
+    state
+        .edit_arguments_button
+        .set_tooltip_text(Some(&i18n::tr(tooltip)));
+}
+
+fn update_arguments_display(state: &UiState) {
+    let text = state.detail_arguments.text();
+    let value = text.trim();
+    if value.is_empty() {
+        state
+            .detail_arguments_display
+            .set_text(&i18n::tr("Command line arguments"));
+        state.detail_arguments_display.add_css_class("dim-label");
+        state.detail_arguments_display.set_tooltip_text(None);
+    } else {
+        state.detail_arguments_display.set_text(value);
+        state.detail_arguments_display.remove_css_class("dim-label");
+        state.detail_arguments_display.set_tooltip_text(Some(value));
     }
 }
 
@@ -229,19 +301,39 @@ pub fn save_website(state: &UiState) {
         return;
     }
     persist_website(&app, value);
+    update_website_display(state);
+    set_website_editing(state, false);
 }
 
-/// Autosaves only valid (or empty) website values when the entry loses focus.
-/// Invalid text is left visible so activation can show the explanatory dialog.
-pub fn save_website_if_valid(state: &UiState) {
-    let Some(app) = state.current_detail.borrow().clone() else {
-        return;
-    };
-    let value = state.detail_website.text().trim().to_string();
-    if !value.is_empty() && !(value.starts_with("http://") || value.starts_with("https://")) {
-        return;
+fn set_website_editing(state: &UiState, editing: bool) {
+    state.detail_website.set_visible(editing);
+    state.detail_website_display.set_visible(!editing);
+    let icon_name = if editing { "check" } else { "edit" };
+    let tooltip = if editing { "Save" } else { "Edit" };
+    state
+        .edit_website_button
+        .set_child(Some(&presentation::icon(icon_name, 18)));
+    state
+        .edit_website_button
+        .set_tooltip_text(Some(&i18n::tr(tooltip)));
+}
+
+fn update_website_display(state: &UiState) {
+    let text = state.detail_website.text();
+    let value = text.trim();
+    if value.is_empty() {
+        state
+            .detail_website_display
+            .set_text(&i18n::tr("Add a website"));
+        state.detail_website_display.add_css_class("dim-label");
+        state.detail_website_display.set_tooltip_text(None);
+        state.detail_open_website.set_visible(false);
+    } else {
+        state.detail_website_display.set_text(value);
+        state.detail_website_display.remove_css_class("dim-label");
+        state.detail_website_display.set_tooltip_text(Some(value));
+        state.detail_open_website.set_visible(true);
     }
-    persist_website(&app, value);
 }
 
 fn persist_website(app: &InstalledApp, value: String) {

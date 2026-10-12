@@ -13,12 +13,16 @@ pub struct DetailPage {
     pub actions: gtk::Box,
     pub banner: adw::Banner,
     pub pills: adw::ToggleGroup,
-    pub arguments: adw::EntryRow,
+    pub arguments: gtk::Entry,
+    pub arguments_display: gtk::Label,
+    pub edit_arguments: gtk::Button,
     pub environment: environment::EnvironmentEditor,
     pub save_environment: gtk::Button,
     pub launch: gtk::Button,
     pub remove: gtk::Button,
-    pub website: adw::EntryRow,
+    pub website: gtk::Entry,
+    pub website_display: gtk::Label,
+    pub edit_website: gtk::Button,
     pub website_row: gtk::Box,
     pub open_website: gtk::Button,
     pub reload_metadata: gtk::Button,
@@ -29,8 +33,8 @@ pub struct DetailPage {
 pub fn build_details_page() -> DetailPage {
     let content = gtk::Box::new(gtk::Orientation::Vertical, 20);
     content.add_css_class("page-content");
-    content.set_margin_top(10);
-    content.set_margin_bottom(10);
+    content.set_margin_top(0);
+    content.set_margin_bottom(0);
     content.set_margin_start(20);
     content.set_margin_end(20);
 
@@ -59,8 +63,6 @@ pub fn build_details_page() -> DetailPage {
         .can_target(false)
         .css_classes(["round"])
         .halign(gtk::Align::Center)
-        .margin_top(20)
-        .margin_bottom(10)
         .build();
 
     let launch = gtk::Button::with_label(&i18n::tr("Launch"));
@@ -73,7 +75,6 @@ pub fn build_details_page() -> DetailPage {
     }
     let actions = gtk::Box::new(gtk::Orientation::Horizontal, 10);
     actions.set_halign(gtk::Align::Center);
-    actions.set_margin_top(20);
     actions.append(&launch);
     actions.append(&remove);
 
@@ -81,44 +82,86 @@ pub fn build_details_page() -> DetailPage {
 
     let info = gtk::Box::new(gtk::Orientation::Vertical, 20);
 
-    let website = adw::EntryRow::builder()
-        .title(i18n::tr("Add a website"))
+    let (website_list, website_content) = presentation::boxed_icon_row("globe");
+    let website_display = gtk::Label::builder()
+        .label(i18n::tr("Add a website"))
+        .hexpand(true)
+        .xalign(0.0)
+        .ellipsize(gtk::pango::EllipsizeMode::End)
         .build();
-    website.add_prefix(&presentation::icon("globe", 18));
+    website_display.add_css_class("dim-label");
+    let website = gtk::Entry::builder()
+        .placeholder_text(i18n::tr("Add a website"))
+        .hexpand(true)
+        .build();
+    website.set_visible(false);
+    let edit_website = presentation::icon_button("edit", "Edit");
+    edit_website.set_valign(gtk::Align::Center);
     let open_website = presentation::icon_button("external-link", "Open URL");
     open_website.set_valign(gtk::Align::Center);
-    website.add_suffix(&open_website);
-    let website_list = gtk::ListBox::new();
-    website_list.add_css_class("boxed-list");
-    website_list.set_selection_mode(gtk::SelectionMode::None);
-    website_list.append(&website);
+    open_website.set_visible(false);
+    website_content.append(&website_display);
+    website_content.append(&website);
+    website_content.append(&presentation::widget_slot(
+        Some(open_website.clone().upcast()),
+        44,
+    ));
+    website_content.append(&presentation::widget_slot(
+        Some(edit_website.clone().upcast()),
+        44,
+    ));
     let website_row = gtk::Box::new(gtk::Orientation::Vertical, 0);
     website_row.append(&website_list);
 
     let advanced = gtk::Box::new(gtk::Orientation::Vertical, 16);
     advanced.add_css_class("settings-section");
     let reload_metadata = gtk::Button::with_label(&i18n::tr("Reload metadata"));
-    let reload_row = gtk::ListBox::new();
-    reload_row.add_css_class("boxed-list");
-    reload_row.set_selection_mode(gtk::SelectionMode::None);
-    let reload_list_row = adw::ActionRow::builder()
-        .title(i18n::tr("Reload metadata"))
-        .subtitle(i18n::tr("Update information like icon, version and description.\nUseful if the app updated itself."))
-        .selectable(false)
+    let (reload_row, reload_content) = presentation::boxed_icon_row("refresh-cw");
+    let reload_info = gtk::Box::new(gtk::Orientation::Vertical, 2);
+    reload_info.set_hexpand(true);
+    let reload_title = gtk::Label::builder()
+        .label(i18n::tr("Reload metadata"))
+        .xalign(0.0)
         .build();
-    reload_list_row.add_prefix(&presentation::icon("refresh-cw", 18));
+    let reload_subtitle = gtk::Label::builder()
+        .label(i18n::tr(
+            "Update information like icon, version and description.\nUseful if the app updated itself.",
+        ))
+        .xalign(0.0)
+        .wrap(true)
+        .css_classes(["dim-label"])
+        .build();
+    reload_info.append(&reload_title);
+    reload_info.append(&reload_subtitle);
     reload_metadata.set_valign(gtk::Align::Center);
-    reload_list_row.add_suffix(&reload_metadata);
-    reload_row.append(&reload_list_row);
+    reload_content.append(&reload_info);
+    reload_content.append(&presentation::widget_slot(None, 24));
+    reload_content.append(&presentation::widget_slot(
+        Some(reload_metadata.clone().upcast()),
+        44,
+    ));
 
-    let arguments = adw::EntryRow::builder()
-        .title(i18n::tr("Command line arguments"))
+    let (arguments_row, arguments_content) = presentation::boxed_icon_row("app-window");
+    let arguments_display = gtk::Label::builder()
+        .label(i18n::tr("Command line arguments"))
+        .hexpand(true)
+        .xalign(0.0)
+        .ellipsize(gtk::pango::EllipsizeMode::End)
         .build();
-    arguments.add_prefix(&presentation::icon("app-window", 18));
-    let arguments_row = gtk::ListBox::new();
-    arguments_row.add_css_class("boxed-list");
-    arguments_row.set_selection_mode(gtk::SelectionMode::None);
-    arguments_row.append(&arguments);
+    arguments_display.add_css_class("dim-label");
+    let arguments = gtk::Entry::builder()
+        .placeholder_text(i18n::tr("Command line arguments"))
+        .hexpand(true)
+        .build();
+    arguments.set_visible(false);
+    let edit_arguments = presentation::icon_button("edit", "Edit");
+    edit_arguments.set_valign(gtk::Align::Center);
+    arguments_content.append(&arguments_display);
+    arguments_content.append(&arguments);
+    arguments_content.append(&presentation::widget_slot(
+        Some(edit_arguments.clone().upcast()),
+        44,
+    ));
 
     let save_environment = gtk::Button::with_label(&i18n::tr("Save"));
     save_environment.add_css_class("suggested-action");
@@ -179,11 +222,15 @@ pub fn build_details_page() -> DetailPage {
         banner,
         pills,
         arguments,
+        arguments_display,
+        edit_arguments,
         environment,
         save_environment,
         launch,
         remove,
         website,
+        website_display,
+        edit_website,
         website_row,
         open_website,
         reload_metadata,
