@@ -27,7 +27,7 @@ install -m 0644 "$root/data/io.github.appimanager.desktop" "$stage/io.github.app
 install -m 0644 "$root/data/io.github.appimanager.gschema.xml" "$stage/io.github.appimanager.gschema.xml"
 install -m 0644 "$root/data/icons/hicolor/scalable/apps/io.github.appimanager.svg" "$stage/io.github.appimanager.svg"
 install -m 0644 "$locale_file" "$stage/appimanager.mo"
-install -m 0644 "$root/COPYING" "$stage/COPYING"
+install -m 0644 "$root/LICENSE" "$stage/LICENSE"
 install -m 0644 "$root/packaging/arch/appimanager.install" "$stage/appimanager.install"
 
 # Build a normal pacman package with Arch's own makepkg, while reusing the

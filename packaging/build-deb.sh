@@ -38,7 +38,7 @@ if [[ -z "$locale_file" ]]; then
 fi
 install -m 0644 "$locale_file" \
     "$package_root/usr/share/locale/zh_CN/LC_MESSAGES/appimanager.mo"
-install -m 0644 "$root/COPYING" "$package_root/usr/share/doc/appimanager/COPYING"
+install -m 0644 "$root/LICENSE" "$package_root/usr/share/doc/appimanager/LICENSE"
 install -m 0755 "$root/packaging/deb/postinst" "$package_root/DEBIAN/postinst"
 install -m 0755 "$root/packaging/deb/postrm" "$package_root/DEBIAN/postrm"
 

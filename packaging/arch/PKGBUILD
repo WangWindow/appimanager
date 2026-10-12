@@ -3,7 +3,7 @@ pkgver=@PKGVER@
 pkgrel=1
 pkgdesc='Local AppImage integration manager'
 arch=('x86_64')
-license=('GPL3')
+license=('BSD-3-Clause')
 depends=('desktop-file-utils' 'glib2' 'glibc' 'gtk4' 'libadwaita')
 options=('!debug')
 install=appimanager.install
@@ -13,7 +13,7 @@ source=(
   'io.github.appimanager.gschema.xml'
   'io.github.appimanager.svg'
   'appimanager.mo'
-  'COPYING'
+  'LICENSE'
   'appimanager.install'
 )
 sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
@@ -28,6 +28,6 @@ package() {
     "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.appimanager.svg"
   install -Dm644 "$srcdir/appimanager.mo" \
     "$pkgdir/usr/share/locale/zh_CN/LC_MESSAGES/appimanager.mo"
-  install -Dm644 "$srcdir/COPYING" \
-    "$pkgdir/usr/share/licenses/appimanager/COPYING"
+  install -Dm644 "$srcdir/LICENSE" \
+    "$pkgdir/usr/share/licenses/appimanager/LICENSE"
 }
