@@ -1,7 +1,0 @@
-#!/bin/sh
-set -eu
-
-APPDIR="${APPDIR:-$(dirname "$(readlink -f "$0")")}"
-export APPIMANAGER_SCHEMA_DIR="$APPDIR/usr/share/glib-2.0/schemas"
-export APPIMANAGER_LOCALEDIR="$APPDIR/usr/share/locale"
-exec "$APPDIR/usr/bin/appimanager" "$@"

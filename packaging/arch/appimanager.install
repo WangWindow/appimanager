@@ -1,0 +1,15 @@
+_refresh_app_data() {
+  command -v glib-compile-schemas >/dev/null 2>&1 && \
+    glib-compile-schemas /usr/share/glib-2.0/schemas || true
+  command -v update-desktop-database >/dev/null 2>&1 && \
+    update-desktop-database -q /usr/share/applications || true
+  if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+    gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+  elif command -v gtk4-update-icon-cache >/dev/null 2>&1; then
+    gtk4-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+  fi
+}
+
+post_install() { _refresh_app_data; }
+post_upgrade() { _refresh_app_data; }
+post_remove() { _refresh_app_data; }

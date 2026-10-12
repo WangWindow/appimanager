@@ -1,0 +1,32 @@
+pkgname=appimanager
+pkgver=@PKGVER@
+pkgrel=1
+pkgdesc='Local AppImage integration manager'
+arch=('x86_64')
+license=('GPL3')
+depends=('desktop-file-utils' 'glib2' 'glibc' 'gtk4' 'libadwaita')
+install=appimanager.install
+source=(
+  'appimanager'
+  'io.github.appimanager.desktop'
+  'io.github.appimanager.gschema.xml'
+  'io.github.appimanager.svg'
+  'appimanager.mo'
+  'COPYING'
+  'appimanager.install'
+)
+sha256sums=('SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP' 'SKIP')
+
+package() {
+  install -Dm755 "$srcdir/appimanager" "$pkgdir/usr/bin/appimanager"
+  install -Dm644 "$srcdir/io.github.appimanager.desktop" \
+    "$pkgdir/usr/share/applications/io.github.appimanager.desktop"
+  install -Dm644 "$srcdir/io.github.appimanager.gschema.xml" \
+    "$pkgdir/usr/share/glib-2.0/schemas/io.github.appimanager.gschema.xml"
+  install -Dm644 "$srcdir/io.github.appimanager.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/io.github.appimanager.svg"
+  install -Dm644 "$srcdir/appimanager.mo" \
+    "$pkgdir/usr/share/locale/zh_CN/LC_MESSAGES/appimanager.mo"
+  install -Dm644 "$srcdir/COPYING" \
+    "$pkgdir/usr/share/licenses/appimanager/COPYING"
+}

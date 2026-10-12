@@ -30,29 +30,16 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes --no-install-recommends \
-            adwaita-icon-theme \
             build-essential \
             curl \
             dpkg-dev \
-            file \
             gettext \
             libglib2.0-bin \
-            gobject-introspection \
             jq \
             libadwaita-1-dev \
-            libcairo2-dev \
-            libepoxy-dev \
-            libgdk-pixbuf2.0-bin \
-            libgdk-pixbuf-2.0-dev \
-            libgirepository-2.0-dev \
             libglib2.0-dev \
-            libgtk-4-bin \
             libgtk-4-dev \
-            libgraphene-1.0-dev \
-            libpango1.0-dev \
-            librsvg2-dev \
-            pkg-config \
-            squashfs-tools
+            pkg-config
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -90,8 +77,9 @@ jobs:
       - name: Build deb package
         run: bash packaging/build-deb.sh "${{ steps.version.outputs.version }}" "${{ matrix.deb_arch }}" dist
 
-      - name: Build AppImage
-        run: bash packaging/build-appimage.sh "${{ steps.version.outputs.version }}" "${{ matrix.arch }}" dist
+      - name: Build Arch Linux package
+        if: matrix.arch == 'x86_64'
+        run: bash packaging/build-arch-package.sh "${{ steps.version.outputs.version }}" dist
 
       - uses: actions/upload-artifact@v4
         with:

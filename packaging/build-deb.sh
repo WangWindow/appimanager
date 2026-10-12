@@ -19,12 +19,15 @@ mkdir -p \
     "$package_root/DEBIAN" \
     "$package_root/usr/bin" \
     "$package_root/usr/share/applications" \
+    "$package_root/usr/share/icons/hicolor/scalable/apps" \
     "$package_root/usr/share/glib-2.0/schemas" \
     "$package_root/usr/share/locale/zh_CN/LC_MESSAGES" \
     "$package_root/usr/share/doc/appimanager"
 install -m 0755 "$binary" "$package_root/usr/bin/appimanager"
 install -m 0644 "$root/data/io.github.appimanager.desktop" \
     "$package_root/usr/share/applications/io.github.appimanager.desktop"
+install -m 0644 "$root/data/icons/hicolor/scalable/apps/io.github.appimanager.svg" \
+    "$package_root/usr/share/icons/hicolor/scalable/apps/io.github.appimanager.svg"
 install -m 0644 "$root/data/io.github.appimanager.gschema.xml" \
     "$package_root/usr/share/glib-2.0/schemas/io.github.appimanager.gschema.xml"
 locale_file="$(find "$root/target/release/build" -type f \
@@ -50,7 +53,7 @@ Standards-Version: 4.6.2
 
 Package: appimanager
 Architecture: any
-Depends: ${shlibs:Depends}, desktop-file-utils, libglib2.0-bin
+Depends: ${shlibs:Depends}, desktop-file-utils, libglib2.0-bin, libgtk-4-bin
 Description: Local AppImage integration manager
  Manage locally installed AppImage applications with a GTK interface.
 CONTROL
@@ -68,7 +71,7 @@ Section: utils
 Priority: optional
 Architecture: ${arch}
 Maintainer: AppImage Manager contributors <appimanager@users.noreply.github.com>
-Depends: ${dependencies}, desktop-file-utils, libglib2.0-bin
+Depends: ${dependencies}, desktop-file-utils, libglib2.0-bin, libgtk-4-bin
 Description: Local AppImage integration manager
  Manage locally installed AppImage applications with a GTK interface.
 CONTROL
