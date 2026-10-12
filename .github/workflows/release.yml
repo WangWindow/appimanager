@@ -1,0 +1,118 @@
+name: Linux packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }} packages
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-26.04
+            arch: x86_64
+            deb_arch: amd64
+          - runner: ubuntu-26.04-arm
+            arch: aarch64
+            deb_arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK and packaging tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends \
+            adwaita-icon-theme \
+            build-essential \
+            curl \
+            dpkg-dev \
+            file \
+            gettext \
+            libglib2.0-bin \
+            gobject-introspection \
+            jq \
+            libadwaita-1-dev \
+            libcairo2-dev \
+            libepoxy-dev \
+            libgdk-pixbuf2.0-bin \
+            libgdk-pixbuf-2.0-dev \
+            libgirepository-2.0-dev \
+            libglib2.0-dev \
+            libgtk-4-bin \
+            libgtk-4-dev \
+            libgraphene-1.0-dev \
+            libpango1.0-dev \
+            librsvg2-dev \
+            pkg-config \
+            squashfs-tools
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check release version
+        id: version
+        shell: bash
+        run: |
+          version="$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[] | select(.name == "appimanager") | .version')"
+          actual_arch="$(uname -m)"
+          expected_arch="${{ matrix.arch }}"
+          if [[ "$actual_arch" != "$expected_arch" ]]; then
+            echo "Expected native $expected_arch runner, got $actual_arch" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "${GITHUB_REF_NAME#v}" != "$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match Cargo.toml version $version" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Lint
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Test application
+        run: cargo test --locked
+
+      - name: Test vendored AppImage offset fix
+        run: cargo test --manifest-path vendor/appimage-rs/Cargo.toml --locked
+
+      - name: Build release binary
+        run: cargo build --release --locked
+
+      - name: Build deb package
+        run: bash packaging/build-deb.sh "${{ steps.version.outputs.version }}" "${{ matrix.deb_arch }}" dist
+
+      - name: Build AppImage
+        run: bash packaging/build-appimage.sh "${{ steps.version.outputs.version }}" "${{ matrix.arch }}" dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimanager-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub release
+    if: github.ref_type == 'tag' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-26.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: appimanager-*
+          path: dist
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: dist/*

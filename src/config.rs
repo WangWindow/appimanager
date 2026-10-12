@@ -54,13 +54,20 @@ fn read_legacy_settings() -> Option<SettingsData> {
 
 fn gio_settings() -> Option<gio::Settings> {
     let default = gio::SettingsSchemaSource::default();
-    let source = gio::SettingsSchemaSource::from_directory(
-        env!("APPIMANAGER_SCHEMA_DIR"),
-        default.as_ref(),
-        true,
-    )
-    .ok()
-    .or(default)?;
+    // An AppImage sets this to its bundled schemas; an uninstalled Cargo build
+    // falls back to OUT_DIR, while a deb uses the system schema source.
+    let schema_dir = std::env::var_os("APPIMANAGER_SCHEMA_DIR")
+        .map(PathBuf::from)
+        .filter(|path| path.is_dir())
+        .or_else(|| {
+            let build_schema_dir = PathBuf::from(env!("APPIMANAGER_SCHEMA_DIR"));
+            build_schema_dir.is_dir().then_some(build_schema_dir)
+        });
+    let source = schema_dir
+        .and_then(|path| {
+            gio::SettingsSchemaSource::from_directory(path, default.as_ref(), true).ok()
+        })
+        .or(default)?;
     let schema = source.lookup("io.github.appimanager.AppImageManager", false)?;
     Some(gio::Settings::new_full(
         &schema,

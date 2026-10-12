@@ -7,9 +7,15 @@ pub fn init() {
     unsafe {
         gettextrs::setlocale(gettextrs::LocaleCategory::LcAll, "");
     }
+    let build_locale_directory = PathBuf::from(env!("OUT_DIR")).join("locale");
     let locale_directory = std::env::var_os("APPIMANAGER_LOCALEDIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("OUT_DIR")).join("locale"));
+        .or_else(|| {
+            build_locale_directory
+                .is_dir()
+                .then_some(build_locale_directory)
+        })
+        .unwrap_or_else(|| PathBuf::from("/usr/share/locale"));
     let _ = gettextrs::bindtextdomain("appimanager", &locale_directory);
     let _ = gettextrs::bind_textdomain_codeset("appimanager", "UTF-8");
     let _ = gettextrs::textdomain("appimanager");
