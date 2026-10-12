@@ -264,6 +264,8 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
         title: detail_page.title.clone(),
         subtitle: detail_page.subtitle.clone(),
         detail_icon: detail_page.icon.clone(),
+        detail_content: detail_page.content.clone(),
+        detail_clamp: detail_page.clamp.clone(),
         detail_info: detail_page.info.clone(),
         detail_actions: detail_page.actions.clone(),
         detail_banner: detail_page.banner.clone(),
@@ -425,6 +427,31 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
 }
 
 pub(super) fn restore_file_preview(state: &UiState) {
+    state.detail_content.set_spacing(20);
+    state.detail_content.set_margin_top(10);
+    state.detail_content.set_margin_bottom(10);
+    state.detail_content.set_margin_start(20);
+    state.detail_content.set_margin_end(20);
+    state.detail_clamp.set_margin_top(10);
+    state.detail_clamp.set_margin_bottom(20);
+    state.detail_actions.set_spacing(10);
+    state.detail_actions.set_margin_top(20);
+    state.detail_launch.add_css_class("big-btn");
+    state.detail_primary.add_css_class("big-btn");
+    state.subtitle.set_lines(2);
+    if state.detail_is_candidate.get() && !state.candidate_trusted.get() {
+        state.detail_banner.set_title(&i18n::tr(
+            "Please, verify the source of this app before opening it",
+        ));
+    }
+    if let Some(app) = state.current_detail.borrow().as_ref() {
+        presentation::set_app_image(
+            &state.detail_icon,
+            app.icon_path.as_ref(),
+            app.icon_name.as_deref(),
+            96,
+        );
+    }
     state.detail_info.set_visible(true);
     state.detail_pills.set_visible(true);
     state.detail_advanced.set_visible(true);

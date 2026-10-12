@@ -19,6 +19,8 @@ pub struct UiState {
     pub title: gtk::Label,
     pub subtitle: gtk::Label,
     pub detail_icon: gtk::Image,
+    pub detail_content: gtk::Box,
+    pub detail_clamp: adw::Clamp,
     pub detail_info: gtk::Box,
     pub detail_actions: gtk::Box,
     pub detail_banner: adw::Banner,

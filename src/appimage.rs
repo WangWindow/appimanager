@@ -84,6 +84,17 @@ pub fn detect_architecture(path: &Path) -> Architecture {
 /// can be read; otherwise the file name is used and the remaining fields stay
 /// empty so the caller can still integrate the file.
 pub fn inspect(path: &Path, allow_unsafe_extraction: bool) -> Result<ImportCandidate> {
+    let mut candidate = inspect_metadata(path, allow_unsafe_extraction)?;
+    candidate.hashes = cached_hashes(path)?;
+    Ok(candidate)
+}
+
+/// Reads preview metadata without hashing the full AppImage file.
+///
+/// The compact file-open preview does not display hashes, so it can skip the
+/// potentially expensive full-file read and show the app as soon as metadata
+/// extraction finishes.
+pub fn inspect_metadata(path: &Path, allow_unsafe_extraction: bool) -> Result<ImportCandidate> {
     let Some(probe) = probe(path).filter(|probe| probe.kind != AppImageType::Unknown) else {
         return Err(anyhow!("the selected file is not an AppImage"));
     };
@@ -107,7 +118,7 @@ pub fn inspect(path: &Path, allow_unsafe_extraction: bool) -> Result<ImportCandi
         exec_arguments: Vec::new(),
         environment: Vec::new(),
         trusted: false,
-        hashes: cached_hashes(path)?,
+        hashes: Default::default(),
     };
 
     if let Some(extracted) = extract_metadata(path, allow_unsafe_extraction)? {

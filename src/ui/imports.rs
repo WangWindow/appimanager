@@ -85,12 +85,19 @@ pub fn open_import_paths(state: &UiState, paths: Vec<PathBuf>, opened_from_file:
     }
     state.candidate_trusted.set(false);
     let safe = state.settings.borrow().use_safe_extraction;
+    let quick_preview =
+        opened_from_file && state.settings.borrow().minimal_preview && paths.len() == 1;
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let mut candidates = Vec::new();
         let mut errors = Vec::new();
         for path in paths {
-            match appimage::inspect(&path, !safe) {
+            let inspected = if quick_preview {
+                appimage::inspect_metadata(&path, !safe)
+            } else {
+                appimage::inspect(&path, !safe)
+            };
+            match inspected {
                 Ok(candidate) => candidates.push(candidate),
                 Err(error) => errors.push(format!("{}: {error}", path.display())),
             }
@@ -175,6 +182,33 @@ fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>, opened_from_f
 }
 
 pub(super) fn prepare_minimal_preview(state: &UiState) {
+    state.detail_content.set_spacing(6);
+    state.detail_content.set_margin_top(0);
+    state.detail_content.set_margin_bottom(0);
+    state.detail_clamp.set_margin_top(0);
+    state.detail_clamp.set_margin_bottom(0);
+    state.detail_content.set_margin_start(12);
+    state.detail_content.set_margin_end(12);
+    state.detail_actions.set_spacing(6);
+    state.detail_actions.set_margin_top(0);
+    state.detail_launch.remove_css_class("big-btn");
+    state.detail_primary.remove_css_class("big-btn");
+    state.subtitle.set_lines(1);
+    if state.detail_is_candidate.get() && !state.candidate_trusted.get() {
+        state
+            .detail_banner
+            .set_title(&i18n::tr("Verify app source"));
+    }
+    if let Some(app) = state.current_detail.borrow().as_ref() {
+        presentation::set_app_image(
+            &state.detail_icon,
+            app.icon_path.as_ref(),
+            app.icon_name.as_deref(),
+            56,
+        );
+    } else {
+        state.detail_icon.set_pixel_size(56);
+    }
     state.detail_info.set_visible(false);
     state.detail_pills.set_visible(false);
     state.detail_advanced.set_visible(false);

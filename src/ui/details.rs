@@ -4,6 +4,8 @@ use super::*;
 
 pub struct DetailPage {
     pub page: gtk::ScrolledWindow,
+    pub content: gtk::Box,
+    pub clamp: adw::Clamp,
     pub title: gtk::Label,
     pub subtitle: gtk::Label,
     pub icon: gtk::Image,
@@ -167,6 +169,8 @@ pub fn build_details_page() -> DetailPage {
         .build();
     DetailPage {
         page,
+        content,
+        clamp,
         title,
         subtitle,
         icon,
