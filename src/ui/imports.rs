@@ -72,13 +72,13 @@ pub fn choose_files(state: &UiState) {
                     .filter_map(|object| object.downcast::<gio::File>().ok())
                     .filter_map(|file| file.path())
                     .collect();
-                open_import_paths(&state_clone, paths);
+                open_import_paths(&state_clone, paths, false);
             }
         },
     );
 }
 
-pub fn open_import_paths(state: &UiState, paths: Vec<PathBuf>) {
+pub fn open_import_paths(state: &UiState, paths: Vec<PathBuf>, opened_from_file: bool) {
     if paths.is_empty() {
         return;
     }
@@ -102,7 +102,7 @@ pub fn open_import_paths(state: &UiState, paths: Vec<PathBuf>) {
         move || match receiver.try_recv() {
             Ok((candidates, errors)) => {
                 if !candidates.is_empty() {
-                    show_imports(&state, candidates);
+                    show_imports(&state, candidates, opened_from_file);
                 }
                 if !errors.is_empty() {
                     show_message(&state, &i18n::tr("Unknown Error"), &errors.join("\n"));
@@ -115,10 +115,13 @@ pub fn open_import_paths(state: &UiState, paths: Vec<PathBuf>) {
     );
 }
 
-fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>) {
+fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>, opened_from_file: bool) {
     *state.current_imports.borrow_mut() = candidates.clone();
     if candidates.len() == 1 {
         show_candidate(state, &candidates[0]);
+        if opened_from_file && state.settings.borrow().minimal_preview {
+            show_minimal_preview(state);
+        }
         return;
     }
     while let Some(child) = state.import_list.first_child() {
@@ -159,6 +162,23 @@ fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>) {
     state.import_warning.set_visible(any_installed);
     state.detail_is_candidate.set(false);
     state.stack.set_visible_child_name("import");
+}
+
+fn show_minimal_preview(state: &UiState) {
+    state.detail_info.set_visible(false);
+    state.detail_pills.set_visible(false);
+    state.detail_advanced.set_visible(false);
+    state.detail_reload_row.set_visible(false);
+    state.detail_website_row.set_visible(false);
+    state
+        .detail_actions
+        .set_orientation(gtk::Orientation::Vertical);
+    state.import_button.set_visible(false);
+    state.preferences_button.set_visible(false);
+    state.search_button.set_visible(false);
+    state.window.unmaximize();
+    state.window.set_default_size(-1, -1);
+    state.window.set_resizable(false);
 }
 
 pub fn show_candidate(state: &UiState, candidate: &ImportCandidate) {
@@ -366,7 +386,11 @@ fn start_install(state: &UiState, candidates: Vec<ImportCandidate>, replace: boo
                             &state_clone,
                             &i18n::tr("AppImage added to the application menu"),
                         );
-                        show_list(&state_clone);
+                        if state_clone.opened_from_file.get() {
+                            state_clone.window.close();
+                        } else {
+                            show_list(&state_clone);
+                        }
                     }
                     Err(error) => toast(&state_clone, &error.to_string()),
                 };

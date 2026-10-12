@@ -28,15 +28,17 @@ pub fn run() {
         app.set_accels_for_action("app.import", &["<primary>o"]);
         app.set_accels_for_action("app.search", &["<primary>f"]);
     });
-    app.connect_activate(build_ui);
+    app.connect_activate(|app| build_ui(app, false));
     app.connect_open(|app, files, _hint| {
         if application_state(app).is_none() {
-            build_ui(app);
+            build_ui(app, true);
         }
         if let Some(state) = application_state(app) {
+            state.opened_from_file.set(true);
+            state.window.present();
             let paths: Vec<PathBuf> = files.iter().filter_map(|file| file.path()).collect();
             if !paths.is_empty() {
-                open_import_paths(&state, paths);
+                open_import_paths(&state, paths, true);
             }
         }
     });
@@ -108,10 +110,15 @@ pub fn add_stack_page(stack: &adw::Leaflet, child: &impl IsA<gtk::Widget>, name:
     stack.append(child).set_name(Some(name));
 }
 
-fn build_ui(app: &adw::Application) {
+fn build_ui(app: &adw::Application, opened_from_file: bool) {
     if let Some(state) = application_state(app) {
+        if state.opened_from_file.replace(false) {
+            restore_file_preview(&state);
+            show_list(&state);
+        } else {
+            refresh_apps(&state);
+        }
         state.window.present();
-        refresh_apps(&state);
         return;
     }
 
@@ -235,6 +242,7 @@ fn build_ui(app: &adw::Application) {
         subtitle: detail_page.subtitle.clone(),
         detail_icon: detail_page.icon.clone(),
         detail_info: detail_page.info.clone(),
+        detail_actions: detail_page.actions.clone(),
         detail_banner: detail_page.banner.clone(),
         detail_pills: detail_page.pills.clone(),
         detail_arguments: detail_page.arguments.clone(),
@@ -247,6 +255,10 @@ fn build_ui(app: &adw::Application) {
         detail_reload: detail_page.reload_metadata.clone(),
         detail_advanced: detail_page.advanced.clone(),
         detail_reload_row: detail_page.reload_row.clone(),
+        import_button: import_button.clone(),
+        preferences_button: preferences_button.clone(),
+        search_button: search_button.clone(),
+        opened_from_file: Rc::new(Cell::new(opened_from_file)),
         import_list: import_page.list.clone(),
         import_warning: import_page.already_installed.clone(),
         current_detail,
@@ -371,16 +383,37 @@ fn build_ui(app: &adw::Application) {
         .connect_button_clicked(move |_| unlock_candidate(&state_clone));
 
     install_drop_target(&state);
-    if state.settings.borrow().is_maximized {
+    if state.settings.borrow().is_maximized && !opened_from_file {
         window.maximize();
     }
     let state_for_maximize = state.clone();
     window.connect_maximized_notify(move |window| {
-        state_for_maximize.settings.borrow_mut().is_maximized = window.is_maximized();
-        let _ = config::save_settings(&state_for_maximize.settings.borrow());
+        if !state_for_maximize.opened_from_file.get() {
+            state_for_maximize.settings.borrow_mut().is_maximized = window.is_maximized();
+            let _ = config::save_settings(&state_for_maximize.settings.borrow());
+        }
     });
     window.present();
     refresh_apps(&state);
+}
+
+fn restore_file_preview(state: &UiState) {
+    state.detail_info.set_visible(true);
+    state.detail_pills.set_visible(true);
+    state.detail_advanced.set_visible(true);
+    state.detail_reload_row.set_visible(true);
+    state.detail_website_row.set_visible(true);
+    state
+        .detail_actions
+        .set_orientation(gtk::Orientation::Horizontal);
+    state.import_button.set_visible(true);
+    state.preferences_button.set_visible(true);
+    state.search_button.set_visible(true);
+    state.window.set_resizable(true);
+    state.window.set_default_size(660, 600);
+    if state.settings.borrow().is_maximized {
+        state.window.maximize();
+    }
 }
 
 fn build_empty_page() -> (adw::StatusPage, gtk::Button) {

@@ -43,7 +43,7 @@ pub fn install_drop_target(state: &UiState) {
         if paths.is_empty() {
             return false;
         }
-        open_import_paths(&state_clone, paths);
+        open_import_paths(&state_clone, paths, false);
         true
     });
     state.stack.add_controller(target);

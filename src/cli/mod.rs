@@ -50,10 +50,11 @@ pub struct Arguments {
 
 /// Runs the CLI when arguments were provided.
 ///
-/// Returns `Ok(true)` when a command handled the invocation, `Ok(false)` when
-/// no arguments were given and the GUI should start instead.
+/// Returns `Ok(true)` when a CLI command handled the invocation, `Ok(false)`
+/// when GUI startup or a GApplication file-open event should handle it instead.
 pub fn run_if_requested() -> Result<bool> {
-    if std::env::args_os().len() <= 1 {
+    let arguments: Vec<_> = std::env::args_os().skip(1).collect();
+    if arguments.is_empty() || !arguments[0].to_string_lossy().starts_with('-') {
         return Ok(false);
     }
     let arguments = match Arguments::try_parse() {
