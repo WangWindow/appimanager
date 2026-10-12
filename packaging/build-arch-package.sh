@@ -32,13 +32,18 @@ install -m 0644 "$root/packaging/arch/appimanager.install" "$stage/appimanager.i
 
 # Build a normal pacman package with Arch's own makepkg, while reusing the
 # release binary compiled on the native Ubuntu x86_64 runner.
+host_uid="$(id -u)"
+host_gid="$(id -g)"
 docker run --rm --platform linux/amd64 \
+    --env "HOST_UID=$host_uid" \
+    --env "HOST_GID=$host_gid" \
     -v "$stage:/build" \
     -w /build \
     archlinux:base-devel \
     bash -euc '
         useradd --create-home package-builder
         chown -R package-builder:package-builder /build
+        trap '\''chown -R "$HOST_UID:$HOST_GID" /build'\'' EXIT
         runuser -u package-builder -- makepkg --noconfirm --nodeps --cleanbuild
     '
 

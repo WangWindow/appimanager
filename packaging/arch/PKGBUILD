@@ -5,6 +5,7 @@ pkgdesc='Local AppImage integration manager'
 arch=('x86_64')
 license=('GPL3')
 depends=('desktop-file-utils' 'glib2' 'glibc' 'gtk4' 'libadwaita')
+options=('!debug')
 install=appimanager.install
 source=(
   'appimanager'

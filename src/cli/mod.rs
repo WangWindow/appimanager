@@ -17,7 +17,7 @@ use std::path::PathBuf;
 #[derive(Debug, Parser)]
 #[command(
     name = "appimanager",
-    version,
+    version = env!("APPIMANAGER_VERSION"),
     about = "Integrate, list and remove AppImages",
     disable_help_subcommand = true
 )]

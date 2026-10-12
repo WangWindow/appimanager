@@ -4,6 +4,12 @@ use std::path::PathBuf;
 use std::process::Command;
 
 fn main() {
+    let version = env::var("APPIMANAGER_VERSION")
+        .or_else(|_| env::var("CARGO_PKG_VERSION"))
+        .expect("Cargo must provide the application version");
+    println!("cargo:rustc-env=APPIMANAGER_VERSION={version}");
+    println!("cargo:rerun-if-env-changed=APPIMANAGER_VERSION");
+
     let manifest = PathBuf::from(env::var_os("CARGO_MANIFEST_DIR").unwrap());
     let local_po = manifest.join("po");
     let linguas = fs::read_to_string(local_po.join("LINGUAS")).expect("po/LINGUAS is required");
