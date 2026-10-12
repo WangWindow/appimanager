@@ -39,15 +39,28 @@ pub fn icon_button(name: &str, tooltip: &str) -> gtk::Button {
 }
 
 pub fn app_image(path: Option<&PathBuf>, icon_name: Option<&str>, pixel_size: i32) -> gtk::Image {
-    let image = if let Some(path) = path.filter(|path| path.is_file()) {
-        gtk::Image::from_file(path)
-    } else if let Some(icon_name) = icon_name {
-        gtk::Image::from_icon_name(icon_name)
-    } else {
-        icon("app-window", pixel_size)
-    };
-    image.set_pixel_size(pixel_size);
+    let image = gtk::Image::new();
+    set_app_image(&image, path, icon_name, pixel_size);
     image
+}
+
+pub fn set_app_image(
+    image: &gtk::Image,
+    path: Option<&PathBuf>,
+    icon_name: Option<&str>,
+    pixel_size: i32,
+) {
+    if let Some(path) = path.filter(|path| path.is_file())
+        && let Ok(pixbuf) =
+            gtk::gdk_pixbuf::Pixbuf::from_file_at_scale(path, pixel_size, pixel_size, true)
+    {
+        image.set_from_pixbuf(Some(&pixbuf));
+    } else if let Some(icon_name) = icon_name {
+        image.set_icon_name(Some(icon_name));
+    } else {
+        image.set_icon_name(Some("application-x-executable-symbolic"));
+    }
+    image.set_pixel_size(pixel_size);
 }
 
 /// Formats bytes with the same GNU-style compact unit labels used by Gearlever.

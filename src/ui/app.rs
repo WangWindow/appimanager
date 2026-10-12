@@ -1,5 +1,6 @@
 //! Libadwaita application lifecycle and top-level page composition.
 
+use super::imports::prepare_minimal_preview;
 use super::*;
 
 pub fn run() {
@@ -28,17 +29,31 @@ pub fn run() {
         app.set_accels_for_action("app.import", &["<primary>o"]);
         app.set_accels_for_action("app.search", &["<primary>f"]);
     });
-    app.connect_activate(|app| build_ui(app, false));
+    let launch_has_files = std::env::args_os()
+        .skip(1)
+        .any(|argument| !argument.to_string_lossy().starts_with('-'));
+    app.connect_activate(move |app| {
+        if !launch_has_files {
+            build_ui(app, false);
+        }
+    });
     app.connect_open(|app, files, _hint| {
         if application_state(app).is_none() {
             build_ui(app, true);
         }
         if let Some(state) = application_state(app) {
             state.opened_from_file.set(true);
-            state.window.present();
+            if state.settings.borrow().minimal_preview {
+                state.stack.set_visible_child_name("opening");
+                prepare_minimal_preview(&state);
+            }
             let paths: Vec<PathBuf> = files.iter().filter_map(|file| file.path()).collect();
             if !paths.is_empty() {
                 open_import_paths(&state, paths, true);
+            } else {
+                restore_file_preview(&state);
+                show_list(&state);
+                state.window.present();
             }
         }
     });
@@ -229,6 +244,14 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
     add_stack_page(&stack, &detail_page.page, "details");
     let import_page = build_import_page();
     add_stack_page(&stack, &import_page.page, "import");
+    let opening_page = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    opening_page.set_halign(gtk::Align::Center);
+    opening_page.set_valign(gtk::Align::Center);
+    let opening_spinner = gtk::Spinner::new();
+    opening_spinner.start();
+    opening_page.append(&opening_spinner);
+    opening_page.append(&gtk::Label::new(Some(&i18n::tr("Opening AppImage…"))));
+    add_stack_page(&stack, &opening_page, "opening");
 
     let state = UiState {
         window: window.clone(),
@@ -383,6 +406,10 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
         .connect_button_clicked(move |_| unlock_candidate(&state_clone));
 
     install_drop_target(&state);
+    if opened_from_file && state.settings.borrow().minimal_preview {
+        state.stack.set_visible_child_name("opening");
+        prepare_minimal_preview(&state);
+    }
     if state.settings.borrow().is_maximized && !opened_from_file {
         window.maximize();
     }
@@ -397,7 +424,7 @@ fn build_ui(app: &adw::Application, opened_from_file: bool) {
     refresh_apps(&state);
 }
 
-fn restore_file_preview(state: &UiState) {
+pub(super) fn restore_file_preview(state: &UiState) {
     state.detail_info.set_visible(true);
     state.detail_pills.set_visible(true);
     state.detail_advanced.set_visible(true);

@@ -1,5 +1,6 @@
 //! File opening, import preview, trust confirmation and integration flow.
 
+use super::app::restore_file_preview;
 use super::*;
 
 /// Named widget handles for the multiple-import page.
@@ -101,9 +102,18 @@ pub fn open_import_paths(state: &UiState, paths: Vec<PathBuf>, opened_from_file:
         std::time::Duration::from_millis(30),
         move || match receiver.try_recv() {
             Ok((candidates, errors)) => {
+                let use_minimal_preview = opened_from_file
+                    && state.settings.borrow().minimal_preview
+                    && candidates.len() == 1;
+                if opened_from_file && !use_minimal_preview {
+                    restore_file_preview(&state);
+                }
                 if !candidates.is_empty() {
                     show_imports(&state, candidates, opened_from_file);
+                } else if opened_from_file {
+                    show_list(&state);
                 }
+                state.window.present();
                 if !errors.is_empty() {
                     show_message(&state, &i18n::tr("Unknown Error"), &errors.join("\n"));
                 }
@@ -120,7 +130,7 @@ fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>, opened_from_f
     if candidates.len() == 1 {
         show_candidate(state, &candidates[0]);
         if opened_from_file && state.settings.borrow().minimal_preview {
-            show_minimal_preview(state);
+            prepare_minimal_preview(state);
         }
         return;
     }
@@ -164,7 +174,7 @@ fn show_imports(state: &UiState, candidates: Vec<ImportCandidate>, opened_from_f
     state.stack.set_visible_child_name("import");
 }
 
-fn show_minimal_preview(state: &UiState) {
+pub(super) fn prepare_minimal_preview(state: &UiState) {
     state.detail_info.set_visible(false);
     state.detail_pills.set_visible(false);
     state.detail_advanced.set_visible(false);
@@ -177,7 +187,7 @@ fn show_minimal_preview(state: &UiState) {
     state.preferences_button.set_visible(false);
     state.search_button.set_visible(false);
     state.window.unmaximize();
-    state.window.set_default_size(-1, -1);
+    state.window.set_default_size(420, -1);
     state.window.set_resizable(false);
 }
 

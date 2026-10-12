@@ -58,15 +58,12 @@ pub fn show_details(state: &UiState, app: InstalledApp) {
     state
         .subtitle
         .set_text(app.description.as_deref().unwrap_or(""));
-    if let Some(path) = app.icon_path.as_ref().filter(|p| p.is_file()) {
-        state.detail_icon.set_from_file(Some(path));
-    } else if let Some(icon_name) = app.icon_name.as_deref() {
-        state.detail_icon.set_icon_name(Some(icon_name));
-    } else {
-        state
-            .detail_icon
-            .set_icon_name(Some("application-x-executable-symbolic"));
-    }
+    presentation::set_app_image(
+        &state.detail_icon,
+        app.icon_path.as_ref(),
+        app.icon_name.as_deref(),
+        96,
+    );
     state.detail_pills.remove_all();
     if let Some(version) = app.version.as_deref().filter(|version| !version.is_empty()) {
         append_pill(&state.detail_pills, version);
