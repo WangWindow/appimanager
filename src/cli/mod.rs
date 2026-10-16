@@ -40,7 +40,7 @@ pub struct Arguments {
     /// Delete files permanently instead of trashing them
     #[arg(long)]
     pub delete: bool,
-    /// Replace the old file when a name conflict occurs
+    /// Replace one existing integration and preserve its settings
     #[arg(long)]
     pub replace: bool,
     /// Print a versioned machine-readable JSON document

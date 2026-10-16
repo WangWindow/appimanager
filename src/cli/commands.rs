@@ -73,12 +73,25 @@ fn integrate(
     if !confirm_if_needed(arguments, &format!("Integrate {}?", candidate.name))? {
         return Ok(());
     }
+    let existing = installed
+        .iter()
+        .find(|app| app.identity_name == candidate.name && app.name == candidate.name)
+        .or_else(|| {
+            installed
+                .iter()
+                .find(|app| app.identity_name == candidate.name)
+        });
     if arguments.replace {
-        for existing in installed.iter().filter(|app| app.name == candidate.name) {
-            service::remove_app(existing)?;
+        if let Some(existing) = existing {
+            service::replace_candidate(&candidate, settings, existing)?;
+        } else {
+            service::install_candidate(&candidate, settings)?;
         }
+    } else if existing.is_some() {
+        service::keep_both_candidate(&candidate, settings)?;
+    } else {
+        service::install_candidate(&candidate, settings)?;
     }
-    service::install_candidate(&candidate, settings)?;
     println!("{} was integrated", path.display());
     Ok(())
 }

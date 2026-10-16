@@ -58,15 +58,6 @@ pub fn applications_dir() -> PathBuf {
         .join("applications")
 }
 
-pub fn icons_dir() -> PathBuf {
-    dirs::data_local_dir()
-        .unwrap_or_else(|| dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")))
-        .join("icons")
-        .join("hicolor")
-        .join("scalable")
-        .join("apps")
-}
-
 pub fn parse_exec(command: &str) -> Vec<String> {
     let mut result = Vec::new();
     let mut current = String::new();
@@ -127,6 +118,23 @@ pub fn desktop_exec(path: &Path, entry: &DesktopEntry) -> Vec<String> {
         .collect()
 }
 
+fn desktop_environment(entry: &DesktopEntry) -> Vec<(String, String)> {
+    let mut tokens = parse_exec(entry.get("Exec").unwrap_or_default()).into_iter();
+    if tokens.next().as_deref() != Some("env") {
+        return Vec::new();
+    }
+    let mut environment = Vec::new();
+    for token in tokens {
+        let Some((key, value)) = token.split_once('=') else {
+            break;
+        };
+        if !key.is_empty() {
+            environment.push((key.to_string(), value.to_string()));
+        }
+    }
+    environment
+}
+
 pub fn load_installed(default_directory: &Path, show_external: bool) -> Result<Vec<InstalledApp>> {
     let directory = applications_dir();
     if !directory.exists() {
@@ -151,11 +159,11 @@ pub fn load_installed(default_directory: &Path, show_external: bool) -> Result<V
             continue;
         }
 
-        let executable = entry.get("TryExec").map(PathBuf::from).or_else(|| {
-            desktop_exec(Path::new(""), &entry)
-                .first()
-                .map(PathBuf::from)
-        });
+        let command = desktop_exec(Path::new(""), &entry);
+        let executable = entry
+            .get("TryExec")
+            .map(PathBuf::from)
+            .or_else(|| command.first().map(PathBuf::from));
         let Some(executable) = executable else {
             continue;
         };
@@ -176,6 +184,16 @@ pub fn load_installed(default_directory: &Path, show_external: bool) -> Result<V
             Err(_) => continue,
         };
         let config = crate::config::load_app_config(&executable).unwrap_or_default();
+        let exec_arguments = if config.arguments.is_empty() {
+            command.into_iter().skip(1).collect()
+        } else {
+            config.arguments
+        };
+        let environment = if config.environment.is_empty() {
+            desktop_environment(&entry)
+        } else {
+            config.environment
+        };
         let icon_value = entry.get("Icon").map(str::to_string);
         let icon_path = icon_value.as_deref().and_then(|icon| {
             let path = PathBuf::from(icon);
@@ -194,17 +212,23 @@ pub fn load_installed(default_directory: &Path, show_external: bool) -> Result<V
                     .unwrap_or("AppImage")
             })
             .to_string();
+        let identity_name = entry
+            .get("X-AppImage-Name")
+            .filter(|identity| !identity.is_empty())
+            .unwrap_or(&name)
+            .to_string();
 
         apps.push(InstalledApp {
             name,
+            identity_name,
             description: entry.get("Comment").map(str::to_string),
             version: entry.get("X-AppImage-Version").map(str::to_string),
             appimage_path: executable,
             desktop_file_path: path,
             icon_path,
             icon_name,
-            exec_arguments: config.arguments,
-            environment: config.environment,
+            exec_arguments,
+            environment,
             architecture,
             appimage_type: app_type,
             size: metadata.len(),
@@ -229,11 +253,12 @@ pub fn quote_exec_arg(value: &str) -> String {
     }
 }
 
-pub fn write_desktop_file(
+pub fn write_desktop_file_with_name(
     path: &Path,
     candidate: &crate::model::ImportCandidate,
     appimage_path: &Path,
     icon_path: Option<&Path>,
+    display_name: &str,
 ) -> Result<()> {
     let exec = build_exec(
         appimage_path,
@@ -243,11 +268,10 @@ pub fn write_desktop_file(
 
     let icon = icon_path
         .map(|path| path.to_string_lossy().into_owned())
-        .or_else(|| candidate.icon_name.clone())
-        .unwrap_or_else(|| "application-x-executable".to_string());
+        .unwrap_or_else(|| "applications-other".to_string());
     let mut content = String::from("[Desktop Entry]\n");
     content.push_str("Type=Application\n");
-    content.push_str(&format!("Name={}\n", escape(&candidate.name)));
+    content.push_str(&format!("Name={}\n", escape(display_name)));
     if let Some(description) = &candidate.description {
         content.push_str(&format!("Comment={}\n", escape(description)));
     }
@@ -266,6 +290,7 @@ pub fn write_desktop_file(
         content.push_str(&format!("X-AppImage-Version={}\n", escape(version)));
     }
     content.push_str(&format!("X-AppImage-Manager={}\n", APP_MANAGER_MARKER));
+    content.push_str(&format!("X-AppImage-Name={}\n", escape(&candidate.name)));
     content.push_str(&format!(
         "X-AppImage-Path={}\n",
         escape(&appimage_path.to_string_lossy())
@@ -366,18 +391,26 @@ fn unescape(value: &str) -> String {
 }
 
 pub fn app_id_for(name: &str, path: &Path) -> String {
-    let mut id = String::new();
-    for ch in name.chars().chain(path.to_string_lossy().chars()) {
-        if ch.is_ascii_alphanumeric() {
-            id.push(ch.to_ascii_lowercase());
-        } else {
-            id.push('-');
-        }
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .unwrap_or(name);
+    let id = stem
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+                ch.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>();
+    if id.is_empty() {
+        "appimage".to_string()
+    } else {
+        id
     }
-    while id.contains("--") {
-        id = id.replace("--", "-");
-    }
-    id.trim_matches('-').to_string()
 }
 
 #[cfg(test)]

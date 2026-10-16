@@ -360,69 +360,159 @@ fn extract_with_appimage_binary(path: &Path, destination: &Path) -> Result<bool>
 }
 
 fn find_desktop_file(root: &Path) -> Option<PathBuf> {
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(directory) = stack.pop() {
-        let entries = fs::read_dir(directory).ok()?;
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path.extension().and_then(|extension| extension.to_str()) == Some("desktop") {
-                return Some(path);
-            }
+    let mut pending = std::collections::VecDeque::from([root.to_path_buf()]);
+    while let Some(directory) = pending.pop_front() {
+        let Ok(read_dir) = fs::read_dir(directory) else {
+            continue;
+        };
+        let mut entries = read_dir
+            .flatten()
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        entries.sort();
+
+        if let Some(path) = entries.iter().find(|path| {
+            path.is_file()
+                && path.extension().and_then(|extension| extension.to_str()) == Some("desktop")
+        }) {
+            return Some(path.clone());
         }
+        pending.extend(entries.into_iter().filter(|path| path.is_dir()));
     }
     None
 }
 
 fn find_icon(root: &Path, icon: &str) -> Option<PathBuf> {
+    find_dir_icon(root).or_else(|| find_named_icon(root, icon))
+}
+
+fn find_named_icon(root: &Path, icon: &str) -> Option<PathBuf> {
     let basename = Path::new(icon)
         .file_name()
+        .and_then(|value| value.to_str())?;
+    let (stem, original_extension) = match Path::new(basename)
+        .extension()
         .and_then(|value| value.to_str())
-        .unwrap_or(icon);
-    let names = if Path::new(basename).extension().is_some() {
-        vec![basename.to_string()]
-    } else {
-        ICON_EXTENSIONS
-            .iter()
-            .map(|extension| format!("{basename}.{extension}"))
-            .collect()
-    };
-    let mut stack = vec![root.to_path_buf()];
-    while let Some(directory) = stack.pop() {
-        for entry in fs::read_dir(directory).ok()?.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                stack.push(path);
-            } else if path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| names.iter().any(|wanted| wanted.eq_ignore_ascii_case(name)))
-            {
-                return Some(path);
-            }
+    {
+        Some(extension)
+            if extension.eq_ignore_ascii_case("svg") || extension.eq_ignore_ascii_case("png") =>
+        {
+            (Path::new(basename).file_stem()?.to_str()?, Some(extension))
         }
+        Some(extension) => (Path::new(basename).file_stem()?.to_str()?, Some(extension)),
+        None => (basename, None),
+    };
+
+    // Gear Lever prefers a .DirIcon first, then root-level SVG/PNG assets,
+    // followed by the conventional hicolor application icon sizes.
+    let mut names = vec![format!("{stem}.svg"), format!("{stem}.png")];
+    if let Some(extension) = original_extension
+        && !extension.eq_ignore_ascii_case("svg")
+        && !extension.eq_ignore_ascii_case("png")
+    {
+        names.insert(0, basename.to_string());
+    }
+    for name in &names {
+        let path = root.join(name);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    let hicolor = root.join("usr/share/icons/hicolor");
+    for relative in [
+        format!("scalable/apps/{stem}.svg"),
+        format!("512x512/apps/{stem}.png"),
+        format!("256x256/apps/{stem}.png"),
+        format!("128x128/apps/{stem}.png"),
+        format!("96x96/apps/{stem}.png"),
+    ] {
+        let path = hicolor.join(relative);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    // Some AppImages use a non-standard icon directory. Keep a deterministic
+    // basename fallback after the Gear Lever paths have been checked.
+    let mut pending = std::collections::VecDeque::from([root.to_path_buf()]);
+    while let Some(directory) = pending.pop_front() {
+        let mut entries = fs::read_dir(directory)
+            .ok()?
+            .flatten()
+            .map(|entry| entry.path())
+            .collect::<Vec<_>>();
+        entries.sort();
+        if let Some(path) = entries.iter().find(|path| {
+            path.is_file()
+                && path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| {
+                        names.iter().any(|wanted| wanted.eq_ignore_ascii_case(name))
+                    })
+        }) {
+            return Some(path.clone());
+        }
+        pending.extend(entries.into_iter().filter(|path| path.is_dir()));
     }
     None
 }
 
-fn find_default_icon(root: &Path) -> Option<PathBuf> {
-    let dir_icon = root.join(".DirIcon");
-    if dir_icon.is_file() {
-        return Some(dir_icon);
+fn find_dir_icon(root: &Path) -> Option<PathBuf> {
+    let path = root.join(".DirIcon");
+    let contents = fs::read(&path).ok()?;
+    if is_supported_icon(&contents) {
+        return Some(path);
     }
-    find_icon(root, "icon")
+
+    // AppDir images may store .DirIcon as a text path instead of an image
+    // symlink. Resolve it within the extracted image root, never outside it.
+    let reference = std::str::from_utf8(&contents).ok()?.trim();
+    if reference.is_empty() {
+        return None;
+    }
+    let reference_path = Path::new(reference);
+    let relative = reference_path.strip_prefix("/").unwrap_or(reference_path);
+    let image_root = root.canonicalize().ok()?;
+    let resolved = root.join(relative).canonicalize().ok()?;
+    if !resolved.starts_with(image_root) {
+        return None;
+    }
+    let contents = fs::read(&resolved).ok()?;
+    is_supported_icon(&contents).then_some(resolved)
 }
 
-/// Copies an extracted icon into the user icon theme directory.
-pub fn copy_icon(source: &Path, app_id: &str) -> Result<PathBuf> {
-    let extension = source
+fn is_supported_icon(contents: &[u8]) -> bool {
+    contents.starts_with(b"\x89PNG\r\n\x1a\n")
+        || std::str::from_utf8(contents)
+            .ok()
+            .is_some_and(|text| text.contains("<svg"))
+}
+
+fn find_default_icon(root: &Path) -> Option<PathBuf> {
+    find_dir_icon(root).or_else(|| find_named_icon(root, "icon"))
+}
+
+/// Copies an extracted icon beside the AppImage in Gear Lever's `.icons` folder.
+pub fn copy_icon(source: &Path, appimage_path: &Path, desktop_file_path: &Path) -> Result<PathBuf> {
+    let app_id = desktop_file_path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .filter(|stem| !stem.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| desktop::app_id_for("appimage", appimage_path));
+    let appimages_directory = appimage_path
+        .parent()
+        .ok_or_else(|| anyhow!("AppImage path has no parent directory"))?;
+    let directory = appimages_directory.join(".icons");
+    fs::create_dir_all(&directory)?;
+    let filename = source
         .extension()
         .and_then(|extension| extension.to_str())
-        .unwrap_or("png");
-    let directory = desktop::icons_dir();
-    fs::create_dir_all(&directory)?;
-    let destination = directory.join(format!("{app_id}.{extension}"));
+        .map(|extension| format!("{app_id}.{extension}"))
+        .unwrap_or(app_id);
+    let destination = directory.join(filename);
     fs::copy(source, &destination)
         .with_context(|| format!("cannot copy icon to {}", destination.display()))?;
     Ok(destination)
@@ -431,6 +521,25 @@ pub fn copy_icon(source: &Path, app_id: &str) -> Result<PathBuf> {
 /// Picks a destination file name inside `directory`, appending a numeric
 /// suffix when the preferred name is already taken.
 pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
+    let first = preferred_destination(directory, name);
+    if !first.exists() {
+        return first;
+    }
+    let stem = first
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("appimage");
+    for number in 2..10000 {
+        let candidate = directory.join(format!("{stem}-{number}.appimage"));
+        if !candidate.exists() {
+            return candidate;
+        }
+    }
+    directory.join(format!("{stem}-{}.appimage", now_suffix()))
+}
+
+/// Returns the Gear Lever style base filename for an AppImage name.
+pub fn preferred_destination(directory: &Path, name: &str) -> PathBuf {
     let name = name
         .strip_suffix(".AppImage")
         .or_else(|| name.strip_suffix(".appimage"))
@@ -450,26 +559,50 @@ pub fn unique_destination(directory: &Path, name: &str) -> PathBuf {
     } else {
         safe
     };
-    let base = if safe.to_ascii_lowercase().ends_with(".appimage") {
+    let filename = if safe.to_ascii_lowercase().ends_with(".appimage") {
         safe
     } else {
-        format!("{safe}.AppImage")
+        format!("{safe}.appimage")
     };
-    let first = directory.join(&base);
-    if !first.exists() {
-        return first;
-    }
-    let stem = first
+    directory.join(filename)
+}
+
+/// Picks a versioned side-by-side filename when another release has the base
+/// name already. If the same version is present, use a numeric suffix.
+pub fn keep_both_destination(directory: &Path, name: &str, version: &str) -> PathBuf {
+    let preferred = preferred_destination(directory, name);
+    let stem = preferred
         .file_stem()
         .and_then(|stem| stem.to_str())
         .unwrap_or("appimage");
-    for number in 2..10000 {
-        let candidate = directory.join(format!("{stem}-{number}.AppImage"));
+    let version = version
+        .chars()
+        .map(|character| {
+            if character.is_ascii_alphanumeric() || character == '-' || character == '_' {
+                character.to_ascii_lowercase()
+            } else {
+                '_'
+            }
+        })
+        .collect::<String>()
+        .trim_matches('_')
+        .to_string();
+    let versioned = if version.is_empty() {
+        format!("{stem}_copy.appimage")
+    } else {
+        format!("{stem}_{version}.appimage")
+    };
+    let first = directory.join(versioned);
+    if !first.exists() {
+        return first;
+    }
+    for number in 1..10000 {
+        let candidate = directory.join(format!("{stem}_{number}.appimage"));
         if !candidate.exists() {
             return candidate;
         }
     }
-    directory.join(format!("{stem}-{}.AppImage", now_suffix()))
+    directory.join(format!("{stem}_{}.appimage", now_suffix()))
 }
 
 fn now_suffix() -> u128 {

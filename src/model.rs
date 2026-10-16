@@ -60,7 +60,11 @@ impl AppImageType {
 
 #[derive(Debug, Clone)]
 pub struct InstalledApp {
+    /// Display name from the desktop entry, including a version suffix when
+    /// multiple releases are kept side by side.
     pub name: String,
+    /// Base AppImage name used to match imports with existing installations.
+    pub identity_name: String,
     pub description: Option<String>,
     pub version: Option<String>,
     pub appimage_path: PathBuf,

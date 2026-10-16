@@ -238,6 +238,7 @@ pub fn show_candidate(state: &UiState, candidate: &ImportCandidate) {
     }
     let app = InstalledApp {
         name: candidate.name.clone(),
+        identity_name: candidate.name.clone(),
         description: candidate.description.clone(),
         version: candidate.version.clone(),
         appimage_path: candidate.path.clone(),
@@ -372,7 +373,7 @@ pub fn install_current(state: &UiState) {
         .filter(|app| {
             candidates
                 .iter()
-                .any(|candidate| candidate.name == app.name)
+                .any(|candidate| candidate.name == app.identity_name)
         })
         .cloned()
         .collect();
@@ -391,34 +392,60 @@ pub fn install_current(state: &UiState) {
         let state_clone = state.clone();
         dialog.connect_response(None, move |dialog, response| {
             if response == "keep" || response == "replace" {
-                start_install(&state_clone, candidates.clone(), response == "replace");
+                start_install(
+                    &state_clone,
+                    candidates.clone(),
+                    response == "replace",
+                    response == "keep",
+                );
             }
             dialog.close();
         });
         dialog.present();
         return;
     }
-    start_install(state, candidates, false);
+    start_install(state, candidates, false, false);
 }
 
-fn start_install(state: &UiState, candidates: Vec<ImportCandidate>, replace: bool) {
+fn start_install(
+    state: &UiState,
+    candidates: Vec<ImportCandidate>,
+    replace: bool,
+    keep_both: bool,
+) {
     let settings = state.settings.borrow().clone();
     let existing = state.apps.borrow().clone();
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let result = (|| -> anyhow::Result<()> {
-            if replace {
-                for existing_app in existing.iter().filter(|app| {
-                    candidates
+            let mut replaced_names = std::collections::HashSet::new();
+            for candidate in &candidates {
+                let existing_app = if replace && replaced_names.insert(candidate.name.clone()) {
+                    existing
                         .iter()
-                        .any(|candidate| candidate.name == app.name)
-                }) {
-                    service::remove_app(existing_app)?;
+                        .find(|app| {
+                            app.identity_name == candidate.name && app.name == candidate.name
+                        })
+                        .or_else(|| {
+                            existing
+                                .iter()
+                                .find(|app| app.identity_name == candidate.name)
+                        })
+                } else {
+                    None
+                };
+                if let Some(existing_app) = existing_app {
+                    service::replace_candidate(candidate, &settings, existing_app)?;
+                } else if keep_both
+                    && existing
+                        .iter()
+                        .any(|app| app.identity_name == candidate.name)
+                {
+                    service::keep_both_candidate(candidate, &settings)?;
+                } else {
+                    service::install_candidate(candidate, &settings)?;
                 }
             }
-            candidates
-                .iter()
-                .try_for_each(|candidate| service::install_candidate(candidate, &settings))?;
             Ok(())
         })();
         let _ = sender.send(result);
